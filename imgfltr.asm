@@ -1,22 +1,103 @@
 ; 
 segment code
-..start:
-    mov 		ax,data
-    mov 		ds,ax
-    mov 		ax,stack
-    mov 		ss,ax
-    mov 		sp,stacktop
+__start:
+    mov 	ax,data
+    mov 	ds,ax
+    mov 	ax,stack
+    mov 	ss,ax
+    mov 	sp,stacktop
 
 ; set current mode to 'video' and check last mode
-    mov  		ah,0Fh
-    int  		10h
-    mov  		[last_mode],al
+    mov  	ah,0Fh
+    int  	10h
+    mov  	[last_mode],al
 
 ; change video mode to 640x480 16 color graphic mode
-    mov     	al,12h
-    mov     	ah,0
-    int     	10h
+    mov    	al,12h
+    mov    	ah,0
+    int    	10h
 
+main:
+	call 	draw_interface
+
+	mov		ax,1h	; set to show mouse cursor
+	int		33h		; mouse interrupt
+
+main_loop:
+	mov 	ax,5h				; set to get mouse info
+	mov		bx,0h				; left mouse button
+	int		33h					; mouse interrupt
+
+	mov		[mousepress],bx
+	mov		[mousex],cx
+	mov		[mousey],dx
+
+	cmp		word[mousepress],1	; if mouse wasn't pressed
+	jne		main_loop			; stay on loop
+
+	cmp		word[mousey],60		; if mouse not on clickable area
+	ja		main_loop			; stay on loop
+
+	cmp		word[mousex],95
+	jb		open_file
+
+	cmp		word[mousex],190
+	jb		exit
+
+	cmp		word[mousex],320
+	jb		low_pass
+
+	cmp		word[mousex],475
+	jb		high_pass
+
+	cmp		word[mousex],629
+	jb		gradient
+
+	jmp		main_loop
+
+open_file:
+	mov		word[color],yellow
+	call 	write_open
+	mov		ax,1h
+	int		33h
+
+	jmp		main_loop
+
+exit:
+	mov		word[color],yellow
+	call 	write_exit
+
+	mov  	ah,0   			; set video mode
+    mov  	al,[last_mode]  ; last mode
+    int  	10h
+    mov     ax,4c00h
+    int     21h
+
+high_pass:
+	mov		word[color],yellow
+	call 	write_high_pass
+	mov		ax,1h
+	int		33h
+
+	jmp		main_loop
+
+low_pass:
+	mov		word[color],yellow
+	call 	write_low_pass
+	mov		ax,1h
+	int		33h
+
+	jmp		main_loop
+
+gradient:
+	mov		word[color],yellow
+	call 	write_gradient
+	mov		ax,1h
+	int		33h
+
+	jmp		main_loop
+
+; draws the interface
 draw_interface:
 ; draw main box
     mov		byte[color],strong_white
@@ -121,77 +202,104 @@ draw_interface:
     push	ax
     call	line	; high pass-gradient
 
-; write messages
+; messages
 	mov		byte[color],strong_white
-	mov 	ax,5
-	push 	ax
-	mov 	ax,msg_open
-	push 	ax
-	mov 	ax,2
-	push 	ax
-	mov 	ax,4
-	push 	ax
-	call 	write_message ; open
+	call	write_open
+	call	write_exit
+	call	write_low_pass
+	call	write_high_pass
+	call	write_gradient
 
-	mov 	ax,4
-	push 	ax
-	mov 	ax,msg_close
-	push 	ax
-	mov 	ax,2
-	push 	ax
-	mov 	ax,16
-	push 	ax
-	call 	write_message ; close
+; exit
+	ret
 
-	mov 	ax,12
-	push 	ax
-	mov 	ax,msg_low_pass
-	push 	ax
-	mov 	ax,2
-	push 	ax
-	mov 	ax,26
-	push 	ax
-	call 	write_message ; low pass
+; write 'open' message
+write_open:
+	mov 	cx,5	; msg length
+	mov 	bx,0	; msg offset
+	mov		dh,2	; cursor line
+	mov		dl,4	; cursor column
+loop_write_open:
+    call	cursor
+    mov     al,[bx+msg_open]
+    call	character	; display single character
+    inc     bx          ; next character
+    inc		dl          ; next column
+    loop    loop_write_open
+	ret
 
-	mov 	ax,11
-	push 	ax
-	mov 	ax,msg_high_pass
-	push 	ax
-	mov 	ax,2
-	push 	ax
-	mov 	ax,44
-	push 	ax
-	call 	write_message ; high pass
+; write 'exit' message
+write_exit:
+	mov 	cx,4
+	mov 	bx,0
+	mov		dh,2
+	mov		dl,16
+loop_write_exit:
+    call	cursor
+    mov     al,[bx+msg_exit]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_exit
+	ret
 
-	mov 	ax,9
-	push 	ax
-	mov 	ax,msg_gradient
-	push 	ax
-	mov 	ax,2
-	push 	ax
-	mov 	ax,64
-	push 	ax
-	call 	write_message ; gradient
+; write 'low pass' message
+write_low_pass:
+	mov 	cx,12
+	mov 	bx,0
+	mov		dh,2
+	mov		dl,26
+loop_write_low_pass:
+    call	cursor
+    mov     al,[bx+msg_low_pass]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_low_pass
+	ret
+; write 'high pass' message
+write_high_pass:
+	mov 	cx,11
+	mov 	bx,0
+	mov		dh,2
+	mov		dl,44
+loop_write_high_pass:
+    call	cursor
+    mov     al,[bx+msg_high_pass]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_high_pass
+	ret
 
-	mov 	ax,47
-	push 	ax
-	mov 	ax,msg_id
-	push 	ax
-	mov 	ax,27
-	push 	ax
-	mov 	ax,15
-	push 	ax
-	call 	write_message ; id
-
-; stay in video mode
-
-    mov    	ah,08h
-    int     21h
-    mov  	ah,0   			; set video mode
-    mov  	al,[last_mode]  ; last mode
-    int  	10h
-    mov     ax,4c00h
-    int     21h
+; write 'gradient' message
+write_gradient:
+	mov 	cx,9
+	mov 	bx,0
+	mov		dh,2
+	mov		dl,64
+loop_write_gradient:
+    call	cursor
+    mov     al,[bx+msg_gradient]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_gradient
+	ret
+; write 'id' message
+write_id:
+	mov 	cx,47
+	mov 	bx,0
+	mov		dh,27
+	mov		dl,15
+loop_write_id:
+    call	cursor
+    mov     al,[bx+msg_id]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_id
+	ret
 
 ;------------------------------------------------------------------------------
 ;	function: write message
@@ -226,7 +334,6 @@ loop_write_message:
     inc		dl          ; next column
     loop    loop_write_message
 
-	int    	10h
     pop		di
     pop		si
     pop		dx
@@ -816,16 +923,19 @@ pink		    equ		12
 light_magenta	equ		13
 yellow		    equ		14
 strong_white	equ		15
-last_mode	db		0
-column  	dw  	0
-deltax		dw		0
-deltay		dw		0
+last_mode		db		0
+column  		dw  	0
+deltax			dw		0
+deltay			dw		0
 msg_open   		db      'Abrir' ; 5
-msg_close		db      'Sair' ; 4
+msg_exit		db      'Sair' ; 4
 msg_low_pass   	db      'Passa-Baixas' ; 12
 msg_high_pass   db      'Passa-Altas' ; 11
 msg_gradient   	db      'Gradiente' ; 9
 msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
+mousex			dw		0
+mousey			dw		0
+mousepress		dw		0
 ;------------------------------------------------------------------------------
 segment stack stack
     		resb 		512

@@ -17,117 +17,173 @@ segment code
     mov     	ah,0
     int     	10h
 
-; draw lines
+draw_interface:
+; draw main box
+    mov		byte[color],strong_white
+    mov		ax,10
+    push	ax
+    mov		ax,10
+    push	ax
+    mov		ax,629
+    push	ax
+    mov		ax,10
+    push	ax
+    call	line	; top
 
-    mov		byte[color],strong_white    ; antenas
-    mov		ax,20
+    mov		ax,629
     push	ax
-    mov		ax,400
+    mov		ax,10
     push	ax
-    mov		ax,620
+    mov		ax,629
     push	ax
-    mov		ax,400
+    mov		ax,469
     push	ax
-    call	line
+    call	line	; right
 
-    mov		byte[color],brown	;antenas
-    mov		ax,130
+    mov		ax,629
     push	ax
-    mov		ax,270
+    mov		ax,469
     push	ax
-    mov		ax,100
+    mov		ax,10
     push	ax
-    mov		ax,300
+    mov		ax,469
     push	ax
-    call	line
+    call	line	; bottom
 
-    mov		ax,130
+    mov		ax,10
     push	ax
-    mov		ax,130
+    mov		ax,469
     push	ax
-    mov		ax,100
+    mov		ax,10
     push	ax
-    mov		ax,100
+    mov		ax,10
     push	ax
-    call	line
+    call	line	; left
 
+; dividers
+    mov		ax,10
+    push	ax
+    mov		ax,70
+    push	ax
+    mov		ax,629
+    push	ax
+    mov		ax,70
+    push	ax
+    call	line	; bottom
 
-; draw circles
-    mov		byte[color],blue	; head
-    mov		ax,200
+	mov		ax,10
     push	ax
-    mov		ax,200
+    mov		ax,409
     push	ax
-    mov		ax,100
+    mov		ax,629
     push	ax
-    call	circle
+    mov		ax,409
+    push	ax
+    call	line	; top
 
-    mov		byte[color],green	; body
-    mov		ax,450
+    mov		ax,320
     push	ax
-    mov		ax,200
+    mov		ax,70
+    push	ax
+    mov		ax,320
+    push	ax
+    mov		ax,469
+    push	ax
+    call	line	; middle
+
+	mov		ax,95
+    push	ax
+    mov		ax,409
+    push	ax
+    mov		ax,95
+    push	ax
+    mov		ax,469
+    push	ax
+    call	line	; open-close
+
+	mov		ax,190
+    push	ax
+    mov		ax,409
     push	ax
     mov		ax,190
     push	ax
-    call	circle
+    mov		ax,469
+    push	ax
+    call	line	; close-low pass
 
-    mov		ax,100	; antena circles
+	mov		ax,475
     push	ax
-    mov		ax,100
+    mov		ax,409
     push	ax
-    mov		ax,10
+    mov		ax,475
     push	ax
-    call	circle
+    mov		ax,469
+    push	ax
+    call	line	; high pass-gradient
 
-    mov		ax,100
-    push	ax
-    mov		ax,300
-    push	ax
-    mov		ax,10
-    push	ax
-    call	circle
+; write messages
+	mov		byte[color],strong_white
+	mov 	ax,5
+	push 	ax
+	mov 	ax,msg_open
+	push 	ax
+	mov 	ax,2
+	push 	ax
+	mov 	ax,4
+	push 	ax
+	call 	write_message ; open
 
-    mov		byte[color],red ; red circles
-    mov		ax,500
-    push	ax
-    mov		ax,300
-    push	ax
-    mov		ax,50
-    push	ax
-    call	circle
+	mov 	ax,4
+	push 	ax
+	mov 	ax,msg_close
+	push 	ax
+	mov 	ax,2
+	push 	ax
+	mov 	ax,16
+	push 	ax
+	call 	write_message ; close
 
-    mov		ax,500
-    push	ax
-    mov		ax,100
-    push	ax
-    mov		ax,50
-    push	ax
-    call	circle
+	mov 	ax,12
+	push 	ax
+	mov 	ax,msg_low_pass
+	push 	ax
+	mov 	ax,2
+	push 	ax
+	mov 	ax,26
+	push 	ax
+	call 	write_message ; low pass
 
-    mov 	ax,350
-    push	ax
-    mov		ax,200
-    push	ax
-    mov		ax,50
-    push	ax
-    call	full_circle
+	mov 	ax,11
+	push 	ax
+	mov 	ax,msg_high_pass
+	push 	ax
+	mov 	ax,2
+	push 	ax
+	mov 	ax,44
+	push 	ax
+	call 	write_message ; high pass
 
+	mov 	ax,9
+	push 	ax
+	mov 	ax,msg_gradient
+	push 	ax
+	mov 	ax,2
+	push 	ax
+	mov 	ax,64
+	push 	ax
+	call 	write_message ; gradient
 
-; write message
+	mov 	ax,47
+	push 	ax
+	mov 	ax,msg_id
+	push 	ax
+	mov 	ax,27
+	push 	ax
+	mov 	ax,15
+	push 	ax
+	call 	write_message ; id
 
-    mov     cx,14   ; number of characters
-    mov    	bx,0
-    mov    	dh,0    ;line 0-29
-    mov    	dl,30	;column 0-79
-    mov		byte[color],blue
-l4:
-    call	cursor
-    mov     al,[bx+msg]
-    call	character
-    inc     bx              ; next character
-    inc		dl              ; next column
-    inc		byte [color]	; next color
-    loop    l4
+; stay in video mode
 
     mov    	ah,08h
     int     21h
@@ -138,22 +194,68 @@ l4:
     int     21h
 
 ;------------------------------------------------------------------------------
+;	function: write message
+;
+;	push length
+;	push msg_addr
+;	push line (0-29)
+;	push column (0-79)
+;	call write_message
+;
+;	color = message color (defined in `color` variable)
+write_message:
+	push	bp
+	mov		bp,sp
+	pushf
+	push 	ax
+    push 	bx
+    push	cx
+    push	dx
+    push	si
+    push	di
+
+	mov 	cx,[bp+10]	; get length from stack
+	mov 	bx,[bp+8]	; get message address
+	mov		dh,[bp+6]	; get cursor column position
+	mov		dl,[bp+4]	; get cursor line position
+loop_write_message:
+    call	cursor
+    mov     al,[bx]
+    call	character	; display single character
+    inc     bx          ; next character
+    inc		dl          ; next column
+    loop    loop_write_message
+
+	int    	10h
+    pop		di
+    pop		si
+    pop		dx
+    pop		cx
+    pop		bx
+    pop		ax
+    popf
+	pop		bp
+    ret		6
+
+;------------------------------------------------------------------------------
 ;   function : cursor
 ;
 ;   dh = line (0-29)
 ;   dl = column (0-79)
 cursor:
     pushf
-    push 		ax
-    push 		bx
-    push		cx
-    push		dx
-    push		si
-    push		di
-    push		bp
-    mov     	ah,2
-    mov     	bh,0
-    int     	10h
+    push 	ax
+    push 	bx
+    push	cx
+    push	dx
+    push	si
+    push	di
+    push	bp
+
+    mov     ah,2
+    mov     bh,0
+
+    int     10h
     pop		bp
     pop		di
     pop		si
@@ -178,10 +280,12 @@ character:
     push	si
     push	di
     push	bp
+	
     mov    	ah,9
     mov    	bh,0
     mov    	cx,1
     mov    	bl,[color]
+
     int    	10h
     pop		bp
     pop		di
@@ -210,12 +314,14 @@ plot_xy:
 	push	dx
 	push	si
 	push	di
+
 	mov    	ah,0ch
 	mov    	al,[color]
 	mov    	bh,0
 	mov    	dx,479
 	sub		dx,[bp+4]
 	mov    	cx,[bp+6]
+
 	int    	10h
 	pop		di
 	pop		si
@@ -251,7 +357,7 @@ circle:
 	mov		cx,[bp+4]   ; get r
 
 	mov 	dx,bx
-	add		dx,cx       ;ponto extremo superior
+	add		dx,cx       ; superior extreme
 	push    ax
 	push	dx
 	call plot_xy
@@ -714,7 +820,12 @@ last_mode	db		0
 column  	dw  	0
 deltax		dw		0
 deltay		dw		0
-msg    	    db      'Graphic mode'
+msg_open   		db      'Abrir' ; 5
+msg_close		db      'Sair' ; 4
+msg_low_pass   	db      'Passa-Baixas' ; 12
+msg_high_pass   db      'Passa-Altas' ; 11
+msg_gradient   	db      'Gradiente' ; 9
+msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
 ;------------------------------------------------------------------------------
 segment stack stack
     		resb 		512

@@ -209,6 +209,7 @@ draw_interface:
 	call	write_low_pass
 	call	write_high_pass
 	call	write_gradient
+	call	write_id
 
 ; exit
 	ret

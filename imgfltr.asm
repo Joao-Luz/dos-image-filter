@@ -3,12 +3,14 @@ segment code
 __start:
     mov 	ax,data
     mov 	ds,ax
+	mov		ax,extra
+	mov		es,ax
     mov 	ax,stack
     mov 	ss,ax
     mov 	sp,stacktop
 
 ; set current mode to 'video' and check last mode
-    mov  	ah,0Fh
+    mov  	ah,0fh
     int  	10h
     mov  	[last_mode],al
 
@@ -20,37 +22,37 @@ __start:
 main:
 	call 	draw_interface
 
-	mov		ax,1h	; set to show mouse cursor
-	int		33h		; mouse interrupt
+	mov		ax,1h					; set to show mouse cursor
+	int		33h						; mouse interrupt
 
 main_loop:
-	mov 	ax,5h				; set to get mouse info
-	mov		bx,0h				; left mouse button
-	int		33h					; mouse interrupt
+	mov 	ax,5h					; set to get mouse info
+	mov		bx,0h					; left mouse button
+	int		33h						; mouse interrupt
 
 	mov		[mousepress],bx
 	mov		[mousex],cx
 	mov		[mousey],dx
 
-	cmp		word[mousepress],1	; if mouse wasn't pressed
-	jne		main_loop			; stay on loop
+	cmp		word[mousepress],1		; if mouse wasn't pressed
+	jne		main_loop				; stay on loop
 
-	cmp		word[mousey],60		; if mouse not on clickable area
-	ja		main_loop			; stay on loop
+	cmp		word[mousey],60			; if mouse not on clickable area
+	ja		main_loop				; stay on loop
 
-	cmp		word[mousex],95
+	cmp		word[mousex],95			; checking "open" button
 	jb		open_file
 
-	cmp		word[mousex],190
+	cmp		word[mousex],190		; checking "exit" button
 	jb		exit
 
-	cmp		word[mousex],320
+	cmp		word[mousex],320		; checking "low_pass" button
 	jb		low_pass
 
-	cmp		word[mousex],475
+	cmp		word[mousex],475		; checking "high_pass" button
 	jb		high_pass
 
-	cmp		word[mousex],629
+	cmp		word[mousex],629		; checking "gradient" button
 	jb		gradient
 
 	jmp		main_loop
@@ -58,17 +60,21 @@ main_loop:
 open_file:
 	mov		word[color],yellow
 	call 	write_open
+
 	mov		ax,1h
 	int		33h
 
-	jmp		main_loop
+	mov		cx,45000
+	mov		bx,0
+
+	jmp		read_file
 
 exit:
 	mov		word[color],yellow
 	call 	write_exit
 
-	mov  	ah,0   			; set video mode
-    mov  	al,[last_mode]  ; last mode
+	mov  	ah,0   					; set video mode
+    mov  	al,[last_mode]  		; to last mode
     int  	10h
     mov     ax,4c00h
     int     21h
@@ -97,10 +103,152 @@ gradient:
 
 	jmp		main_loop
 
+file_error:
+	mov		byte[color],red
+	call	write_file_error
+
+	jmp 	main_loop
+
+read_file:
+	mov 	ax,3d00h 				; open file as read only
+	mov 	dx,file_path			; file path
+	int 	21h
+
+	jc		file_error				; if there was an error opening file, exit
+
+	mov 	[handle], ax			; file handle
+read_buffer:
+	mov		ah,3fh
+    mov 	bx,[handle]				; file handle
+    mov 	cx,1000					; amount of bytes to read
+    mov 	dx,buffer 				; buffer address
+    int 	21h
+
+	mov		cx,ax					; ax contains the number of bytes read
+	mov		al,0
+	cmp		cx,0
+	je		store_value
+	mov 	bx,0
+read_bytes:
+	cmp		byte[buffer+bx],20h		; if the byte read is a space (hex 20h)
+	je		store_value				; should now store value
+
+	push	bx
+	mov		bl,10					; multiply the value up to now by 10
+	mul		bl
+	pop		bx
+
+	add		al,byte[buffer+bx]		; add current byte to value
+	sub		al,'0'					; subtract '0' as the byte comes in ascii
+
+	inc		bx						; next byte in buffer
+	loop	read_bytes
+	jmp		read_buffer				; if finished looping through bytes, read from file again
+
+store_value:
+	push	bx
+
+	mov		bl,16					; divide pixel value by 16 as we have 16 colors only
+	div		bl
+
+	cmp		byte[current_half],0	; check if should save in img_1 or img_2
+	je		save_img_1
+	jne		save_img_2
+
+save_img_1:
+	mov		bx,word[img_1_idx]		; get offset for img_1
+	mov		byte[img_1+bx],al		; save the pixel value
+	inc		word[img_1_idx]			; now increment offset
+
+	cmp		word[img_1_idx],45000	; if at the end of the first half
+	je		switch_imgs				; should now save to second half
+	jmp		end_store_value
+
+switch_imgs:
+	mov		byte[current_half],1
+
+	jmp		end_store_value
+save_img_2:
+	mov		bx,word[img_2_idx]		; get offset for img_1
+	mov		byte[es:img_2+bx],al	; save the pixel value
+	inc		word[img_2_idx]			; now increment offset
+										
+	cmp		word[img_2_idx],45000	; if at the end of the second half
+	je		return_read_file		; reached the end of the file
+
+end_store_value:
+	pop		bx
+	mov		al,0					; reset the pixel value
+	inc		bx						; next byte to be read
+	loop	read_bytes
+	jmp		read_buffer				; if all the bytes from the buffer were read, read buffer again
+
+return_read_file:
+	mov		word[img_1_idx],0		; reset the images indices for future use
+	mov		word[img_2_idx],0
+	mov		byte[current_half],0	; the next 'current_half' should be the first one
+
+	mov 	ah,3eh					; close the file
+    mov 	bx,handle
+    int 	21h
+
+display_image:
+	mov		cx,300
+	mov		bx,0
+	mov		word[x],16				; draw image at column 16
+	mov		word[y],380				; and row 380 (from top to bottom)
+display_loop_row:					; loop through rows of image
+	push	cx
+
+	mov		cx,300
+display_loop_col:					; loop through cols of image
+
+	cmp		byte[current_half],0	; decide where to sample next pixel from
+	je		display_img_1			; first half
+	jmp		display_img_2			; or second half
+
+display_img_1:
+	mov		al,byte[img_1+bx]		; get the color from img_1 in memory
+	jmp		plot_pixel
+display_img_2:
+	mov		al,byte[es:img_2+bx]	; get the color from img_2 in memory
+plot_pixel:
+	mov		byte[color],al			; set color of pixel
+
+	push	word[x]
+	push	word[y]
+	call	plot_xy					; draw the pixel
+	
+	inc		word[x]					; next column
+	inc		bx
+
+	loop 	display_loop_col
+
+	; out of loop_col
+	pop		cx
+	dec		word[y]					; next row
+	mov		word[x],16				; reset row position
+
+	cmp		cx,151					; if the first half of the image was drawn
+	jne		pass
+
+	mov		byte[current_half],1	; change from img_1 to img_2
+	mov		bx,0
+pass:
+	loop 	display_loop_row
+
+	; out of loop_row
+	mov		byte[current_half],0
+
+	mov		word[color],bright_white
+	call	write_file_name
+
+	jmp		main_loop
+
 ; draws the interface
 draw_interface:
 ; draw main box
-    mov		byte[color],strong_white
+    mov		byte[color],bright_white
     mov		ax,10
     push	ax
     mov		ax,10
@@ -203,7 +351,7 @@ draw_interface:
     call	line	; high pass-gradient
 
 ; messages
-	mov		byte[color],strong_white
+	mov		byte[color],bright_white
 	call	write_open
 	call	write_exit
 	call	write_low_pass
@@ -212,6 +360,37 @@ draw_interface:
 	call	write_id
 
 ; exit
+	ret
+
+; write file error message
+write_file_error:
+	mov 	cx,40	; msg length
+	mov 	bx,0	; msg offset
+	mov		dh,5	; cursor line
+	mov		dl,2	; cursor column
+loop_write_file_error:
+    call	cursor
+    mov     al,[bx+msg_file_error]
+    call	character	; display single character
+    inc     bx          ; next character
+    inc		dl          ; next column
+    loop    loop_write_file_error
+	ret
+
+
+; write file name message
+write_file_name:
+	mov 	cx,19	; msg length
+	mov 	bx,0	; msg offset
+	mov		dh,5	; cursor line
+	mov		dl,2	; cursor column
+loop_write_file_name:
+    call	cursor
+    mov     al,[bx+file_path]
+    call	character	; display single character
+    inc     bx          ; next character
+    inc		dl          ; next column
+    loop    loop_write_file_name
 	ret
 
 ; write 'open' message
@@ -405,7 +584,7 @@ character:
     popf
     ret
 ;------------------------------------------------------------------------------
-;   function: plot line from x to y
+;   function: plot pixel at (x, y)
 ;
 ;   push x (0 <= x <= 639)
 ;   push y (0 <= y <= 479 )
@@ -888,7 +1067,7 @@ end_line:
 ;------------------------------------------------------------------------------
 segment data
 
-color		db		strong_white
+color				db		bright_white
 
 ;	I R G B color
 ;	0 0 0 0 black
@@ -908,37 +1087,49 @@ color		db		strong_white
 ;	1 1 1 0 yellow
 ;	1 1 1 1 strong white
 
-black		    equ		0
-blue		    equ		1
-green		    equ		2
-cyan		    equ		3
-red             equ		4
-magenta		    equ		5
-brown		    equ		6
-white		    equ		7
-grey		    equ		8
-light_blue	    equ		9
-light_green	    equ		10
-light_cyan	    equ		11
-pink		    equ		12
-light_magenta	equ		13
-yellow		    equ		14
-strong_white	equ		15
-last_mode		db		0
-column  		dw  	0
-deltax			dw		0
-deltay			dw		0
-msg_open   		db      'Abrir' ; 5
-msg_exit		db      'Sair' ; 4
-msg_low_pass   	db      'Passa-Baixas' ; 12
-msg_high_pass   db      'Passa-Altas' ; 11
-msg_gradient   	db      'Gradiente' ; 9
-msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
-mousex			dw		0
-mousey			dw		0
-mousepress		dw		0
-;------------------------------------------------------------------------------
-segment stack stack
-    		resb 		512
-stacktop:
+	black		    equ		0
+	blue		    equ		1
+	green		    equ		2
+	cyan		    equ		3
+	red             equ		4
+	magenta		    equ		5
+	brown		    equ		6
+	white		    equ		7
+	grey		    equ		8
+	light_blue	    equ		9
+	light_green	    equ		10
+	light_cyan	    equ		11
+	pink		    equ		12
+	light_magenta	equ		13
+	yellow		    equ		14
+	bright_white	equ		15
+	last_mode		db		0
+	column  		dw  	0
+	deltax			dw		0
+	deltay			dw		0
+	msg_open   		db      'Abrir' ; 5
+	msg_exit		db      'Sair' ; 4
+	msg_low_pass   	db      'Passa-Baixas' ; 12
+	msg_high_pass   db      'Passa-Altas' ; 11
+	msg_gradient   	db      'Gradiente' ; 9
+	msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
+	msg_file_error	db		'Error opening file "images\original.txt"' ; 40
+	file_path		db		'images\original.txt' ; 19
+	handle			dw		0
+	buffer			resb	2000	; beffer for reading the file
+	img_1			resb	45000	; image half
+	img_1_idx		dw		0
+	img_2_idx		dw		0
+	x				dw		300
+	y				dw		300
+	current_half	db		0
+	mousex			dw		0
+	mousey			dw		0
+	mousepress		dw		0
 
+segment extra
+	img_2			resb	45000
+
+segment stack stack
+		    		resb 	512
+stacktop:

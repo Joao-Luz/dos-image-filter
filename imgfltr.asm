@@ -145,15 +145,22 @@ read_bytes:
 	loop	read_bytes
 	jmp		read_buffer				; if finished looping through bytes, read from file again
 
+switch_imgs:
+	mov		byte[current_half],2
+	jmp		end_store_value
+both_imgs:
+	mov		byte[current_half],1
+	jmp		end_store_value
+
 store_value:
 	push	bx
 
 	mov		bl,16					; divide pixel value by 16 as we have 16 colors only
 	div		bl
 
-	cmp		byte[current_half],0	; check if should save in img_1 or img_2
-	je		save_img_1
-	jne		save_img_2
+	cmp		byte[current_half],1	; check if should save in img_1 or img_2
+	jb		save_img_1
+	je		save_img_2
 
 save_img_1:
 	mov		bx,word[img_1_idx]		; get offset for img_1
@@ -161,13 +168,11 @@ save_img_1:
 	inc		word[img_1_idx]			; now increment offset
 
 	cmp		word[img_1_idx],45000	; if at the end of the first half
+	je		both_imgs				; should now save to second half
+	cmp		word[img_1_idx],45600	; if at the end of the first half
 	je		switch_imgs				; should now save to second half
 	jmp		end_store_value
 
-switch_imgs:
-	mov		byte[current_half],1
-
-	jmp		end_store_value
 save_img_2:
 	mov		bx,word[img_2_idx]		; get offset for img_1
 	mov		byte[es:img_2+bx],al	; save the pixel value
@@ -1117,7 +1122,7 @@ color				db		bright_white
 	file_path		db		'images\original.txt' ; 19
 	handle			dw		0
 	buffer			resb	2000	; beffer for reading the file
-	img_1			resb	45000	; image half
+	img_1			resb	45600	; image half
 	img_1_idx		dw		0
 	img_2_idx		dw		0
 	x				dw		300

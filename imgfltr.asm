@@ -41,25 +41,35 @@ main_loop:
 	ja		main_loop				; stay on loop
 
 	cmp		word[mousex],95			; checking "open" button
-	jb		open_file
-
+	ja		c1
+	jmp		open_file
+c1:
 	cmp		word[mousex],190		; checking "exit" button
-	jb		exit
-
+	ja		c2
+	jmp		exit
+c2:
 	cmp		word[mousex],320		; checking "low_pass" button
-	jb		low_pass
-
+	ja		c3
+	jmp		low_pass
+c3:
 	cmp		word[mousex],475		; checking "high_pass" button
-	jb		high_pass
-
+	ja		c4
+	jmp		high_pass
+c4:
 	cmp		word[mousex],629		; checking "gradient" button
-	jb		gradient
-
+	ja		c5
+	jmp		gradient
+c5:
 	jmp		main_loop
 
 open_file:
 	mov		word[color],yellow
 	call 	write_open
+	mov		byte[color],black
+	call	write_filer_error
+	call	write_file_name
+	call	write_file_error
+	call	clear_image
 
 	mov		ax,1h
 	int		33h
@@ -85,7 +95,19 @@ high_pass:
 	mov		ax,1h
 	int		33h
 
-	jmp		main_loop
+	; defining convolution matrix
+	mov		word[mask],-1
+	mov		word[mask+2],-1
+	mov		word[mask+4],-1
+	mov		word[mask+6],-1
+	mov		word[mask+8],9
+	mov		word[mask+10],-1
+	mov		word[mask+12],-1
+	mov		word[mask+14],-1
+	mov		word[mask+16],-1
+	mov		byte[divide_by],1
+
+	jmp	convolute
 
 low_pass:
 	mov		word[color],yellow
@@ -93,7 +115,19 @@ low_pass:
 	mov		ax,1h
 	int		33h
 
-	jmp		main_loop
+	; defining convolution matrix
+	mov		word[mask],1
+	mov		word[mask+2],1
+	mov		word[mask+4],1
+	mov		word[mask+6],1
+	mov		word[mask+8],1
+	mov		word[mask+10],1
+	mov		word[mask+12],1
+	mov		word[mask+14],1
+	mov		word[mask+16],1
+	mov		byte[divide_by],9
+
+	jmp		convolute
 
 gradient:
 	mov		word[color],yellow
@@ -101,11 +135,25 @@ gradient:
 	mov		ax,1h
 	int		33h
 
-	jmp		main_loop
+	; defining convolution matrix
+	mov		word[mask],-2
+	mov		word[mask+2],-2
+	mov		word[mask+4],0
+	mov		word[mask+6],-2
+	mov		word[mask+8],0
+	mov		word[mask+10],2
+	mov		word[mask+12],0
+	mov		word[mask+14],2
+	mov		word[mask+16],2
+	mov		byte[divide_by],1
+
+	jmp		convolute
 
 file_error:
 	mov		byte[color],red
 	call	write_file_error
+	mov		byte[image_loaded],0	; image was not loaded
+	call	clear_image
 
 	jmp 	main_loop
 
@@ -192,6 +240,7 @@ return_read_file:
 	mov		word[img_1_idx],0		; reset the images indices for future use
 	mov		word[img_2_idx],0
 	mov		byte[current_half],0	; the next 'current_half' should be the first one
+	mov		byte[image_loaded],1	; image was loaded
 
 	mov 	ah,3eh					; close the file
     mov 	bx,handle
@@ -249,6 +298,37 @@ pass:
 	call	write_file_name
 
 	jmp		main_loop
+
+clear_image:
+	mov		cx,300
+	mov		byte[color],black
+clear_image_loop:
+	mov		ax,16
+	push	ax
+	mov		ax,80
+	add		ax,cx
+	push	ax
+	mov		ax,316
+	push	ax
+	mov		ax,80        
+	add		ax,cx
+	push	ax
+	call	line
+	loop	clear_image_loop
+	ret
+filter_error:
+	mov		byte[color],red
+	call	write_filer_error
+	jmp		main_loop
+
+convolute:
+	mov		byte[color],black
+	call	write_filer_error
+
+	cmp		byte[image_loaded],0
+	je		filter_error
+
+	jmp 	main_loop
 
 ; draws the interface
 draw_interface:
@@ -367,6 +447,21 @@ draw_interface:
 ; exit
 	ret
 
+; write filer error message
+write_filer_error:
+	mov 	cx,36
+	mov 	bx,0
+	mov		dh,5
+	mov		dl,41
+loop_write_filer_error:
+    call	cursor
+    mov     al,[bx+msg_filter_error]
+    call	character
+    inc     bx
+    inc		dl
+    loop    loop_write_filer_error
+	ret
+
 ; write file error message
 write_file_error:
 	mov 	cx,40	; msg length
@@ -385,32 +480,32 @@ loop_write_file_error:
 
 ; write file name message
 write_file_name:
-	mov 	cx,19	; msg length
-	mov 	bx,0	; msg offset
-	mov		dh,5	; cursor line
-	mov		dl,2	; cursor column
+	mov 	cx,19
+	mov 	bx,0
+	mov		dh,5
+	mov		dl,2
 loop_write_file_name:
     call	cursor
     mov     al,[bx+file_path]
-    call	character	; display single character
-    inc     bx          ; next character
-    inc		dl          ; next column
+    call	character
+    inc     bx
+    inc		dl
     loop    loop_write_file_name
 	ret
 
 ; write 'open' message
 write_open:
-	mov 	cx,5	; msg length
-	mov 	bx,0	; msg offset
-	mov		dh,2	; cursor line
-	mov		dl,4	; cursor column
+	mov 	cx,5
+	mov 	bx,0
+	mov		dh,2
+	mov		dl,4
 loop_write_open:
     call	cursor
     mov     al,[bx+msg_open]
-    call	character	; display single character
-    inc     bx          ; next character
-    inc		dl          ; next column
-    loop    loop_write_open
+    call	character
+    inc     bx  
+    inc		dl
+	loop    loop_write_open
 	ret
 
 ; write 'exit' message
@@ -1119,12 +1214,16 @@ color				db		bright_white
 	msg_gradient   	db      'Gradiente' ; 9
 	msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
 	msg_file_error	db		'Error opening file "images\original.txt"' ; 40
+	msg_filter_error db		'Cannot apply filter. File not loaded' ; 35
 	file_path		db		'images\original.txt' ; 19
 	handle			dw		0
 	buffer			resb	2000	; beffer for reading the file
 	img_1			resb	45600	; image half
 	img_1_idx		dw		0
 	img_2_idx		dw		0
+	image_loaded	db		0
+	mask			resw	9
+	divide_by		db		1
 	x				dw		300
 	y				dw		300
 	current_half	db		0

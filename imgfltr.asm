@@ -66,11 +66,13 @@ open_file:
 	mov		word[color],yellow
 	call 	write_open
 	mov		byte[color],black
-	call	write_filer_error
+	call	write_filter_error
 	call	write_file_name
 	call	write_file_error
+	cmp		byte[image_loaded],0
+	je		is_loaded
 	call	clear_image
-
+is_loaded:
 	mov		ax,1h
 	int		33h
 

@@ -65,6 +65,12 @@ c5:
 open_file:
 	mov		word[color],yellow
 	call 	write_open
+
+	mov		word[color],bright_white
+	call 	write_low_pass
+	call 	write_high_pass
+	call 	write_gradient
+
 	mov		byte[color],black
 	call	write_filter_error
 	call	write_file_name
@@ -94,6 +100,12 @@ exit:
 high_pass:
 	mov		word[color],yellow
 	call 	write_high_pass
+
+	mov		word[color],bright_white
+	call 	write_open
+	call 	write_low_pass
+	call 	write_gradient
+
 	mov		ax,1h
 	int		33h
 
@@ -116,6 +128,12 @@ high_pass:
 low_pass:
 	mov		word[color],yellow
 	call 	write_low_pass
+
+	mov		word[color],bright_white
+	call 	write_open
+	call 	write_high_pass
+	call 	write_gradient
+
 	mov		ax,1h
 	int		33h
 
@@ -138,6 +156,12 @@ low_pass:
 gradient:
 	mov		word[color],yellow
 	call 	write_gradient
+
+	mov		word[color],bright_white
+	call 	write_open
+	call 	write_low_pass
+	call 	write_high_pass
+
 	mov		ax,1h
 	int		33h
 
@@ -434,7 +458,7 @@ skip_gradient:
 	jmp		sample_img_2
 sample_img_1:
 	mov		bx,word[img_1_idx]
-	
+
 	inc		word[img_1_idx]
 	cmp		word[img_1_idx],45000
 	jne		dont_switch_imgs

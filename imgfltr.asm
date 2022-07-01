@@ -325,13 +325,12 @@ clear_image_loop:
 	loop	clear_image_loop
 	ret
 filter_error:
-	mov		byte[color],red
-	call	write_filer_error
+	mov		byte[color],red			; cannot apply filter as image is not loaded
+	call	write_filter_error
 	jmp		main_loop
 
 convolute:
-	mov		byte[color],black
-	call	write_filer_error
+	call	write_filter_error
 
 	cmp		byte[image_loaded],0
 	je		filter_error
@@ -456,18 +455,18 @@ draw_interface:
 	ret
 
 ; write filer error message
-write_filer_error:
+write_filter_error:
 	mov 	cx,36
 	mov 	bx,0
 	mov		dh,5
 	mov		dl,41
-loop_write_filer_error:
+loop_write_filter_error:
     call	cursor
     mov     al,[bx+msg_filter_error]
     call	character
     inc     bx
     inc		dl
-    loop    loop_write_filer_error
+    loop    loop_write_filter_error
 	ret
 
 ; write file error message

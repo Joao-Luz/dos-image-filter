@@ -165,7 +165,9 @@ read_file:
 	jc		file_error				; if there was an error opening file, exit
 
 	mov 	[handle], ax			; file handle
+	mov		al,0
 read_buffer:
+	push	ax
 	mov		ah,3fh
     mov 	bx,[handle]				; file handle
     mov 	cx,1000					; amount of bytes to read
@@ -177,6 +179,7 @@ read_buffer:
 	cmp		cx,0
 	je		store_value
 	mov 	bx,0
+	pop		ax
 read_bytes:
 	cmp		byte[buffer+bx],20h		; if the byte read is a space (hex 20h)
 	je		store_value				; should now store value

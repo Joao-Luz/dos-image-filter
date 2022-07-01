@@ -309,16 +309,16 @@ pass:
 
 clear_image:
 	mov		cx,300
-	mov		byte[color],black
+	mov		byte[color],black		; to clear the image, simply paint the area black
 clear_image_loop:
-	mov		ax,16
+	mov		ax,16					; x1
 	push	ax
-	mov		ax,80
-	add		ax,cx
+	mov		ax,80					; y1
+	add		ax,cx					; loop through lines
 	push	ax
-	mov		ax,316
+	mov		ax,316					; x2
 	push	ax
-	mov		ax,80        
+	mov		ax,80        			; y2
 	add		ax,cx
 	push	ax
 	call	line

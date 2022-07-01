@@ -206,9 +206,6 @@ both_imgs:
 store_value:
 	push	bx
 
-	mov		bl,16					; divide pixel value by 16 as we have 16 colors only
-	div		bl
-
 	cmp		byte[current_half],1	; check if should save in img_1 or img_2
 	jb		save_img_1
 	je		save_img_2
@@ -270,7 +267,11 @@ display_img_1:
 display_img_2:
 	mov		al,byte[es:img_2+bx]	; get the color from img_2 in memory
 plot_pixel:
+	push	bx
+	mov		bl,16
+	div		bl
 	mov		byte[color],al			; set color of pixel
+	pop		bx
 
 	push	word[x]
 	push	word[y]

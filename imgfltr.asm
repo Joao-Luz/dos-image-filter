@@ -472,7 +472,7 @@ loop_write_filer_error:
 
 ; write file error message
 write_file_error:
-	mov 	cx,40	; msg length
+	mov 	cx,35	; msg length
 	mov 	bx,0	; msg offset
 	mov		dh,5	; cursor line
 	mov		dl,2	; cursor column
@@ -1221,8 +1221,8 @@ color				db		bright_white
 	msg_high_pass   db      'Passa-Altas' ; 11
 	msg_gradient   	db      'Gradiente' ; 9
 	msg_id   		db      'Joao Lucas Luz - Sistemas Embarcados I - 2022/1' ; 47
-	msg_file_error	db		'Error opening file "images\original.txt"' ; 40
-	msg_filter_error db		'Cannot apply filter. File not loaded' ; 35
+	msg_file_error	db		'Error opening "images\original.txt"' ; 35
+	msg_filter_error db		'Cannot apply filter. File not loaded' ; 36
 	file_path		db		'images\original.txt' ; 19
 	handle			dw		0
 	buffer			resb	2000	; beffer for reading the file

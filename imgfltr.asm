@@ -208,7 +208,7 @@ store_value:
 
 	cmp		byte[current_half],1	; check if should save in img_1 or img_2
 	jb		save_img_1
-	je		save_img_2
+	ja		save_img_2
 
 save_img_1:
 	mov		bx,word[img_1_idx]		; get offset for img_1
@@ -219,6 +219,8 @@ save_img_1:
 	je		both_imgs				; should now save to second half
 	cmp		word[img_1_idx],45600	; if at the end of the first half
 	je		switch_imgs				; should now save to second half
+	cmp		byte[current_half],1
+	je		save_img_2
 	jmp		end_store_value
 
 save_img_2:
@@ -287,7 +289,7 @@ plot_pixel:
 	dec		word[y]					; next row
 	mov		word[x],16				; reset row position
 
-	cmp		cx,151					; if the first half of the image was drawn
+	cmp		cx,150					; if the first half of the image was drawn
 	jne		pass
 
 	mov		byte[current_half],1	; change from img_1 to img_2

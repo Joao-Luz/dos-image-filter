@@ -98,18 +98,20 @@ high_pass:
 	int		33h
 
 	; defining convolution matrix
+	mov		byte[is_gradient],0
 	mov		word[mask],-1
 	mov		word[mask+2],-1
 	mov		word[mask+4],-1
 	mov		word[mask+6],-1
-	mov		word[mask+8],9
+	mov		word[mask+8],9	
 	mov		word[mask+10],-1
 	mov		word[mask+12],-1
 	mov		word[mask+14],-1
 	mov		word[mask+16],-1
-	mov		byte[divide_by],1
+	mov		word[divide_by],1
+	mov		byte[use_mod],0
 
-	jmp	convolute
+	jmp		convolute
 
 low_pass:
 	mov		word[color],yellow
@@ -118,6 +120,7 @@ low_pass:
 	int		33h
 
 	; defining convolution matrix
+	mov		byte[is_gradient],0
 	mov		word[mask],1
 	mov		word[mask+2],1
 	mov		word[mask+4],1
@@ -127,7 +130,8 @@ low_pass:
 	mov		word[mask+12],1
 	mov		word[mask+14],1
 	mov		word[mask+16],1
-	mov		byte[divide_by],9
+	mov		word[divide_by],9
+	mov		byte[use_mod],0
 
 	jmp		convolute
 
@@ -138,16 +142,9 @@ gradient:
 	int		33h
 
 	; defining convolution matrix
-	mov		word[mask],-2
-	mov		word[mask+2],-2
-	mov		word[mask+4],0
-	mov		word[mask+6],-2
-	mov		word[mask+8],0
-	mov		word[mask+10],2
-	mov		word[mask+12],0
-	mov		word[mask+14],2
-	mov		word[mask+16],2
-	mov		byte[divide_by],1
+	mov		byte[is_gradient],1
+	mov		word[divide_by],1
+	mov		byte[use_mod],1
 
 	jmp		convolute
 
@@ -324,18 +321,240 @@ clear_image_loop:
 	call	line
 	loop	clear_image_loop
 	ret
+
+sample_img_2:
+	mov		bx,word[img_2_idx]
+
+	inc		word[img_2_idx]
+skip_inc_img2:
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx-301]
+	imul	word[mask]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx-300]
+	imul	word[mask+2]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx-299]
+	imul	word[mask+4]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx-1]
+	imul	word[mask+6]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx]
+	imul	word[mask+8]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx+1]
+	imul	word[mask+10]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx+299]
+	imul	word[mask+12]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx+300]
+	imul	word[mask+14]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[es:img_2+bx+301]\
+	imul	word[mask+16]
+	add		word[convoluted],ax
+
+	jmp 	division
+
+load_gx:
+	mov		word[mask],-1
+	mov		word[mask+2],-2
+	mov		word[mask+4],-1
+	mov		word[mask+6],0
+	mov		word[mask+8],0
+	mov		word[mask+10],0
+	mov		word[mask+12],1
+	mov		word[mask+14],2
+	mov		word[mask+16],1
+	jmp		skip_gradient
+
+load_gy:
+	mov		word[mask],-1
+	mov		word[mask+2],0
+	mov		word[mask+4],1
+	mov		word[mask+6],-2
+	mov		word[mask+8],0
+	mov		word[mask+10],2
+	mov		word[mask+12],-1
+	mov		word[mask+14],0
+	mov		word[mask+16],1
+	jmp		skip_gradient	
+
 filter_error:
 	mov		byte[color],red			; cannot apply filter as image is not loaded
 	call	write_filter_error
 	jmp		main_loop
 
 convolute:
+	mov		byte[color],black		; clear filter error
 	call	write_filter_error
 
-	cmp		byte[image_loaded],0
-	je		filter_error
+	mov		word[x],324
+	mov		word[y],380
+	mov		word[img_1_idx],0
+	mov		word[img_2_idx],600
+	mov		byte[current_half],0
+convolute_loop:
+	cmp		byte[is_gradient],0
+	je		skip_gradient
+	cmp		byte[is_gradient],1
+	jne		load_gy
+	jmp		load_gx
+skip_gradient:
+	mov		word[convoluted],0
+	cmp		byte[current_half],0
+	je		sample_img_1
+	jmp		sample_img_2
+sample_img_1:
+	mov		bx,word[img_1_idx]
+	
+	inc		word[img_1_idx]
+	cmp		word[img_1_idx],45000
+	jne		dont_switch_imgs
 
+	mov		byte[current_half],1
+
+dont_switch_imgs:
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx-301]
+	imul	word[mask]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx-300]
+	imul	word[mask+2]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx-299]
+	imul	word[mask+4]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx-1]
+	imul	word[mask+6]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx]
+	imul	word[mask+8]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx+1]
+	imul	word[mask+10]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx+299]
+	imul	word[mask+12]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx+300]
+	imul	word[mask+14]
+	add		word[convoluted],ax
+
+	mov		ax,0
+	mov		dx,0
+	mov		al,byte[img_1+bx+301]
+	imul	word[mask+16]
+	add		word[convoluted],ax
+
+division:
+	mov		ax,word[convoluted]
+	cmp		word[divide_by],2
+	jl		no_divide
+	mov		bx,word[divide_by]
+	div		bx
+no_divide:
+	cmp		ax,0
+	jg		not_negative
+	cmp		byte[use_mod],0
+	je		not_mod
+	mov		bx,-1
+	imul	bx
+
+	jmp		not_negative
+not_mod:
+	mov		ax,0
+handle_gradient_mask:
+	cmp		byte[is_gradient],1
+	je		convolute_again
+	jg		add_convolutions
+not_negative:
+	cmp		ax,255
+	jl		not_too_big	
+	mov		ax,255
+not_too_big:
+	mov		bl,16
+	div		bl
+	mov		byte[color],al
+	push	word[x]
+	push	word[y]
+	call	plot_xy
+
+	inc		word[x]
+	cmp		word[x],624
+	jne		no_new_line
+	mov		word[x],324
+	dec		word[y]
+no_new_line:
+	cmp		word[y],80
+	je		convolute_exit
+
+	jmp		convolute_loop
+
+convolute_exit:
+	mov		byte[current_half],0
+	mov		word[img_1_idx],0
+	mov		word[img_2_idx],0
 	jmp 	main_loop
+
+convolute_again:
+	mov		word[grad_conv],ax
+	mov		byte[is_gradient],2
+	jmp		convolute_loop
+
+add_convolutions:
+	add		ax,word[grad_conv]
+	mov		byte[is_gradient],1
+	jmp		not_negative
 
 ; draws the interface
 draw_interface:
@@ -1230,7 +1449,11 @@ color				db		bright_white
 	img_2_idx		dw		0
 	image_loaded	db		0
 	mask			resw	9
-	divide_by		db		1
+	use_mod			db		0
+	convoluted		dw		0
+	is_gradient		db		0
+	grad_conv		dw		0
+	divide_by		dw		1
 	x				dw		300
 	y				dw		300
 	current_half	db		0

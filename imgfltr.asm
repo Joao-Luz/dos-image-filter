@@ -215,7 +215,7 @@ save_img_1:
 	mov		byte[img_1+bx],al		; save the pixel value
 	inc		word[img_1_idx]			; now increment offset
 
-	cmp		word[img_1_idx],45000	; if at the end of the first half
+	cmp		word[img_1_idx],44400	; if at the end of the first half
 	je		both_imgs				; should now save to second half
 	cmp		word[img_1_idx],45600	; if at the end of the first half
 	je		switch_imgs				; should now save to second half
@@ -228,7 +228,7 @@ save_img_2:
 	mov		byte[es:img_2+bx],al	; save the pixel value
 	inc		word[img_2_idx]			; now increment offset
 										
-	cmp		word[img_2_idx],45000	; if at the end of the second half
+	cmp		word[img_2_idx],45600	; if at the end of the second half
 	je		return_read_file		; reached the end of the file
 
 end_store_value:
@@ -267,7 +267,7 @@ display_img_1:
 	mov		al,byte[img_1+bx]		; get the color from img_1 in memory
 	jmp		plot_pixel
 display_img_2:
-	mov		al,byte[es:img_2+bx]	; get the color from img_2 in memory
+	mov		al,byte[es:img_2+600+bx]	; get the color from img_2 in memory
 plot_pixel:
 	push	bx
 	mov		bl,16
@@ -1238,7 +1238,7 @@ color				db		bright_white
 	mousepress		dw		0
 
 segment extra
-	img_2			resb	45000
+	img_2			resb	45600
 
 segment stack stack
 		    		resb 	512

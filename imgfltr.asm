@@ -407,7 +407,7 @@ skip_inc_img2:
 
 	jmp 	division
 
-load_gx:
+load_gx:							; load the gx kernel
 	mov		word[mask],-1
 	mov		word[mask+2],-2
 	mov		word[mask+4],-1
@@ -419,7 +419,7 @@ load_gx:
 	mov		word[mask+16],1
 	jmp		skip_gradient
 
-load_gy:
+load_gy:							; load the gy kernel
 	mov		word[mask],-1
 	mov		word[mask+2],0
 	mov		word[mask+4],1
@@ -446,33 +446,34 @@ convolute:
 	mov		word[img_2_idx],600
 	mov		byte[current_half],0
 convolute_loop:
-	cmp		byte[is_gradient],0
-	je		skip_gradient
-	cmp		byte[is_gradient],1
+	cmp		byte[is_gradient],0		; check if passing gradient filter
+	je		skip_gradient			; not gradient, so skip
+
+	cmp		byte[is_gradient],1		; check what gradient pass is happening
 	jne		load_gy
 	jmp		load_gx
 skip_gradient:
-	mov		word[convoluted],0
-	cmp		byte[current_half],0
+	mov		word[convoluted],0		; zero the convoluted value
+	cmp		byte[current_half],0	; check what image half is being used
 	je		sample_img_1
 	jmp		sample_img_2
 sample_img_1:
-	mov		bx,word[img_1_idx]
+	mov		bx,word[img_1_idx]		; get the image index
 
 	inc		word[img_1_idx]
-	cmp		word[img_1_idx],45000
+	cmp		word[img_1_idx],45000	; check if next pass shoud use the second half
 	jne		dont_switch_imgs
 
-	mov		byte[current_half],1
+	mov		byte[current_half],1	; switch the halves
 
 dont_switch_imgs:
-	mov		ax,0
+	mov		ax,0					; convoluting on the first half, should zero ax and dx
 	mov		dx,0
-	mov		al,byte[img_1+bx-301]
-	imul	word[mask]
-	add		word[convoluted],ax
+	mov		al,byte[img_1+bx-301]	; get the pixel from image memory
+	imul	word[mask]				; multiply by the correct value from the kernel
+	add		word[convoluted],ax		; add to the convoluted value
 
-	mov		ax,0
+	mov		ax,0					; repeat for the remaingin 8 kernel values
 	mov		dx,0
 	mov		al,byte[img_1+bx-300]
 	imul	word[mask+2]
@@ -521,64 +522,73 @@ dont_switch_imgs:
 	add		word[convoluted],ax
 
 division:
-	mov		ax,word[convoluted]
-	cmp		word[divide_by],2
+	mov		ax,word[convoluted]		; move the convoluted value to register ax	
+	cmp		word[divide_by],2		; check if should perform division (for the low pass filter)
 	jl		no_divide
-	mov		bx,word[divide_by]
+
+	mov		bx,word[divide_by]		; divide what is in ax by the correct value
 	div		bx
 no_divide:
-	cmp		ax,0
-	jg		not_negative
-	cmp		byte[use_mod],0
+	cmp		ax,0					; check if the value in ax is below zero
+	jg		not_negative			; if its not, do nothing
+	cmp		byte[use_mod],0			; check if should use the mod of ax (for the gradient)
 	je		not_mod
-	mov		bx,-1
+
+	mov		bx,-1					; if the mod should be used, multiply ax by -1
 	imul	bx
 
-	jmp		not_negative
+	jmp		handle_gradient_mask
 not_mod:
-	mov		ax,0
-handle_gradient_mask:
-	cmp		byte[is_gradient],1
+	mov		ax,0					; if the mod shouldn't be used and the value is negative, set it to zero
+handle_gradient_mask:				; handling the gradient filter after taking the mod of ax
+	cmp		byte[is_gradient],1		; check wich pass of the gradient filter should happen next
 	je		convolute_again
-	jg		add_convolutions
+	ja		add_convolutions
 not_negative:
-	cmp		ax,255
+	cmp		ax,255					; check if the value in ax is greater than 255
 	jl		not_too_big	
-	mov		ax,255
+	mov		ax,255					; if that's the case, set ax to 255
 not_too_big:
-	mov		bl,16
+	mov		bl,16					; divide the value in al by 16, as there are only 16 colors available
 	div		bl
-	mov		byte[color],al
-	push	word[x]
-	push	word[y]
-	call	plot_xy
+	mov		byte[color],al			; load the color from the al to paint the pixel
+	push	word[x]					; load x position of pixel
+	push	word[y]					; load y position
+	call	plot_xy					; paint the pixel
 
-	inc		word[x]
-	cmp		word[x],624
+	inc		word[x]					; increment the x position
+	cmp		word[x],624				; if it reached the end of the line
 	jne		no_new_line
-	mov		word[x],324
-	dec		word[y]
+	mov		word[x],324				; reset the x value
+	dec		word[y]					; decrement y value (as its painted from top to bottom)
 no_new_line:
-	cmp		word[y],80
-	je		convolute_exit
+	cmp		word[y],80				; check if reached the end of the last line
+	je		convolute_exit			; end the convolution
 
-	jmp		convolute_loop
+	jmp		convolute_loop			; convolute again to paint the next pixel
 
 convolute_exit:
-	mov		byte[current_half],0
-	mov		word[img_1_idx],0
+	mov		byte[current_half],0	; reset the image half
+	mov		word[img_1_idx],0		; reset image indices
 	mov		word[img_2_idx],0
-	jmp 	main_loop
+	jmp 	main_loop				; go back to the main loop
 
-convolute_again:
-	mov		word[grad_conv],ax
-	mov		byte[is_gradient],2
+convolute_again:					; treating first pass of the gradient filter
+	mov		word[grad_conv],ax		; move what's in ax to the memory
+	mov		byte[is_gradient],2		; next pass should add the two convolutions
+	cmp		byte[current_half],0	; check what half is being sampled
+	jne		dec_img_2
+	dec		word[img_1_idx]			; decrement the index so second convolution happens in the same spot
+
+	jmp		convolute_loop			; convolute again
+dec_img_2:
+	dec		word[img_2_idx]
 	jmp		convolute_loop
 
-add_convolutions:
-	add		ax,word[grad_conv]
-	mov		byte[is_gradient],1
-	jmp		not_negative
+add_convolutions:					; treat the second pass of the gradient
+	add		ax,word[grad_conv]		; add what's in the ax register with the value from the last pass
+	mov		byte[is_gradient],1		; next pass should be the first pass, on the next pixel
+	jmp		not_negative			; continue processing the convoluted value
 
 ; draws the interface
 draw_interface:
